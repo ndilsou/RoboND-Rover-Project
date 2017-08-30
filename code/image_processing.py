@@ -50,7 +50,7 @@ def is_valid_angle(angle, etol):
         return False
 
 
-def is_valide_image(roll, pitch, yaw, eroll, epitch, eyaw):
+def is_valid_image(roll, pitch, yaw, eroll, epitch, eyaw):
     if is_valid_angle(roll, eroll) and is_valid_angle(pitch, epitch) and is_valid_angle(yaw, eyaw):
         return True
     else:
@@ -65,7 +65,7 @@ def colorize_img(img, R, G, B):
     return np.dstack((img * R, img * G, img * B)).astype(np.float)
 
 
-def find_rock(binary_rock, rock_radius, src, dst):
+def find_rock(warped_rock, rock_radius):
     """
     returns the location of the rock as a circle with radius as defined in arguments.
     """
@@ -73,7 +73,6 @@ def find_rock(binary_rock, rock_radius, src, dst):
     xrock = np.array([])
     yrock = np.array([])
 
-    warped_rock = perspect_transform(binary_rock, src, dst)
     y, x = warped_rock.nonzero()
     if y.any() and x.any():
         rock_idx = np.argmax(y)
