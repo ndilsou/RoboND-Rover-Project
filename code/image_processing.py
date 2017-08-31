@@ -65,20 +65,3 @@ def colorize_img(img, R, G, B):
     return np.dstack((img * R, img * G, img * B)).astype(np.float)
 
 
-def find_rock(warped_rock, rock_radius):
-    """
-    returns the location of the rock as a circle with radius as defined in arguments.
-    """
-    # initialised empty
-    xrock = np.array([])
-    yrock = np.array([])
-
-    y, x = warped_rock.nonzero()
-    if y.any() and x.any():
-        rock_idx = np.argmax(y)
-        xrock, yrock = x[rock_idx], y[rock_idx]
-        rock_circle = np.zeros_like(warped_rock)
-        cv2.circle(rock_circle, (np.uint8(xrock), np.uint8(yrock)), rock_radius, (255, 255, 255), -1)
-        xrock, yrock = rover_coords(rock_circle)
-
-    return xrock, yrock

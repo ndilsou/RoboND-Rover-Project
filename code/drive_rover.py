@@ -77,29 +77,32 @@ class RoverState():
         self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
-# Initialize our rover 
+
+# Initialize our rover
 Rover = RoverState()
 
 # Variables to track frames per second (FPS)
 # Intitialize frame counter
 frame_counter = 0
 # Initalize second counter
-second_counter = time.time()
+second_counter = time.clock()
 fps = None
+
+start_time = second_counter
 
 
 # Define telemetry function for what to do with incoming data
 @sio.on('telemetry')
 def telemetry(sid, data):
-
     global frame_counter, second_counter, fps
-    frame_counter+=1
+    frame_counter += 1
     # Do a rough calculation of frames per second (FPS)
-    if (time.time() - second_counter) > 1:
+    if (time.clock() - second_counter) > 1:
         fps = frame_counter
         frame_counter = 0
-        second_counter = time.time()
-    print("Current FPS: {}".format(fps))
+        second_counter = time.clock()
+        print("Current FPS: {}".format(fps))
+    print("elapsed: {}".format(time.clock() - start_time))
 
     if data:
         global Rover
@@ -111,15 +114,14 @@ def telemetry(sid, data):
             # Execute the perception and decision steps to update the Rover's state
             Rover = perception_step(Rover)
             Rover = decision_step(Rover)
-
             # Create output images to send to server
             out_image_string1, out_image_string2 = create_output_images(Rover)
 
             # The action step!  Send commands to the rover!
- 
+
             # Don't send both of these, they both trigger the simulator
             # to send back new telemetry so we must only send one
-            # back in respose to the current telemetry data.
+            # back in response to the current telemetry data.
 
             # If in a state where want to pickup a rock send pickup command
             if Rover.send_pickup and not Rover.picking_up:
@@ -129,14 +131,13 @@ def telemetry(sid, data):
             else:
                 # Send commands to the rover!
                 commands = (Rover.throttle, Rover.brake, Rover.steer)
+                print(commands)
                 send_control(commands, out_image_string1, out_image_string2)
-
         # In case of invalid telemetry, send null commands
         else:
-
+            print("here")
             # Send zeros for throttle, brake and steer and empty images
             send_control((0, 0, 0), '', '')
-
         # If you want to save camera images from autonomous driving specify a path
         # Example: $ python drive_rover.py image_folder_path
         # Conditional to save image frame if folder was specified
@@ -146,7 +147,9 @@ def telemetry(sid, data):
             image.save('{}.jpg'.format(image_filename))
 
     else:
+        print("there")
         sio.emit('manual', data={}, skip_sid=True)
+
 
 @sio.on('connect')
 def connect(sid, environ):
@@ -157,22 +160,30 @@ def connect(sid, environ):
         "get_samples",
         sample_data,
         skip_sid=True)
+    sio.sleep(0)
+
+
 
 def send_control(commands, image_string1, image_string2):
     # Define commands to be sent to the rover
-    data={
-        'throttle': commands[0].__str__(),
-        'brake': commands[1].__str__(),
-        'steering_angle': commands[2].__str__(),
+    print("sending control")
+    data = {
+        'throttle': commands[0].__str__().replace(".",","),
+        'brake': commands[1].__str__().replace(".",","),
+        'steering_angle': commands[2].__str__().replace(".",","),
         'inset_image1': image_string1,
         'inset_image2': image_string2,
         }
+    print(data['throttle'], data['brake'], data['steering_angle'])
     # Send commands via socketIO server
+    print("emitting data")
     sio.emit(
         "data",
         data,
         skip_sid=True)
-    eventlet.sleep(0)
+    print("done")
+    sio.sleep(0)
+
 # Define a function to send the "pickup" command 
 def send_pickup():
     print("Picking up")
@@ -181,7 +192,8 @@ def send_pickup():
         "pickup",
         pickup,
         skip_sid=True)
-    eventlet.sleep(0)
+    sio.sleep(0)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Remote Driving')
     parser.add_argument(
