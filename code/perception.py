@@ -86,6 +86,22 @@ def pix_to_world(xpix, ypix, xpos, ypos, yaw, world_size, scale):
     # Return the result
     return x_pix_world, y_pix_world
 
+
+def world_to_pix(x_pix_world, y_pix_world, xpos, ypos, yaw,  scale):
+    """
+    Reverse the pixel transform, converting from world frame to robot frame
+    """
+    # Apply translation
+    xworld_tran, yworld_tran = translate_pix(x_pix_world, y_pix_world, -ypos * scale, -xpos * scale, 1/scale)
+    # Apply rotation
+    xworld_rot, yworld_rot = rotate_pix(xworld_tran, yworld_tran, -yaw)
+
+    # Perform rotation, translation and clipping all at once
+    xpix = xworld_rot
+    ypix = yworld_rot
+    # Return the result
+    return xpix, ypix
+
 # Define a function to perform a perspective transform
 def perspect_transform(img, src, dst):
            
