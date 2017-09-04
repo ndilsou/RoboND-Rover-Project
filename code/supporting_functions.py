@@ -5,6 +5,9 @@ from io import BytesIO, StringIO
 import base64
 import time
 
+
+
+
 # Define a function to convert telemetry strings to float independent of decimal convention
 def convert_to_float(string_to_convert):
       if ',' in string_to_convert:
@@ -18,6 +21,7 @@ def update_rover(Rover, data):
       if Rover.start_time == None:
             Rover.start_time = time.time()
             Rover.total_time = 0
+            Rover.delta_timer.start()
             samples_xpos = np.int_([convert_to_float(pos.strip()) for pos in data["samples_x"].split(';')])
             samples_ypos = np.int_([convert_to_float(pos.strip()) for pos in data["samples_y"].split(';')])
             Rover.samples_pos = (samples_xpos, samples_ypos)
@@ -27,10 +31,13 @@ def update_rover(Rover, data):
             tot_time = time.time() - Rover.start_time
             if np.isfinite(tot_time):
                   Rover.total_time = tot_time
+
       # Print out the fields in the telemetry data dictionary
       print(data.keys())
       # The current speed of the rover in m/s
       Rover.vel = convert_to_float(data["speed"])
+      # Store the last pos
+      Rover.last_pos = Rover.pos
       # The current position of the rover
       Rover.pos = [convert_to_float(pos.strip()) for pos in data["position"].split(';')]
       # The current yaw angle of the rover

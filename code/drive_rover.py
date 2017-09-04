@@ -35,12 +35,30 @@ ground_truth = mpimg.imread('../calibration_images/map_bw.png')
 # map output looks green in the display image
 ground_truth_3d = np.dstack((ground_truth*0, ground_truth*255, ground_truth*0)).astype(np.float)
 
+
+class DeltaTimer:
+    def __init__(self, delta_seconds):
+        self.delta_seconds = delta_seconds
+        self.last_time = None
+
+    def start(self):
+        self.last_time = time.time()
+
+    def poll(self):
+        if (time.time() - self.last_time) > self.delta_seconds:
+            self.last_time = time.time()
+            return True
+        return False
+
 # Define RoverState() class to retain rover state parameters
 class RoverState():
     def __init__(self):
         self.start_time = None # To record the start time of navigation
         self.total_time = None # To record total duration of naviagation
+        self.time_delta = 3 #seconds
+        self.delta_timer = DeltaTimer(self.time_delta)
         self.img = None # Current camera image
+        self.last_pos = None
         self.pos = None # Current position (x, y)
         self.yaw = None # Current yaw angle
         self.pitch = None # Current pitch angle
@@ -52,16 +70,25 @@ class RoverState():
         self.nav_angles = None # Angles of navigable terrain pixels
         self.nav_dists = None # Distances of navigable terrain pixels
         self.ground_truth = ground_truth_3d # Ground truth worldmap
-        self.mode = 'forward' # Current mode (can be forward or stop)
+        self.mode = 'forward' # Current mode (can be forward, stop, stuck, chase)
         self.throttle_set = 0.2 # Throttle setting when accelerating
+        self.reverse_set = -0.1 # Throttle setting when reversing.
         self.brake_set = 10 # Brake setting when braking
+        # We use the beams readings to know if we are too close to an obstacle.
+        self.beam_angles = np.arange(361)
+        self.beam_points = {}
+        self.closest_obstacle = None
+        self.furthest_obstacle = None
+        self.displacement = None
+        self.etoll_disp = 5e-4 # meter
         # The stop_forward and go_forward fields below represent total count
         # of navigable terrain pixels.  This is a very crude form of knowing
         # when you can keep going and when you should stop.  Feel free to
         # get creative in adding new fields or modifying these!
-        self.stop_forward = 50 # Threshold to initiate stopping
-        self.go_forward = 500 # Threshold to go forward again
-        self.max_vel = 2 # Maximum velocity (meters/second)
+        self.stop_forward = 1 # Threshold to initiate stopping in meter
+        self.go_forward = 2 # Threshold to go forward again in meter
+        self.go_forward_view = 500 # Visual thresold to go forward.
+        self.max_vel = 1.0 # Maximum velocity (meters/second)
         # Image output from perception step
         # Update this image to display your intermediate analysis steps
         # on screen in autonomous mode
@@ -69,7 +96,9 @@ class RoverState():
         # Worldmap
         # Update this image with the positions of navigable terrain
         # obstacles and rock samples
-        self.worldmap = np.zeros((200, 200, 3), dtype=np.float) 
+        self.worldmap = np.zeros((200, 200, 3), dtype=np.float)
+        # We will use this to reach the sample.
+        self.seeing_sample = False
         self.samples_pos = None # To store the actual sample positions
         self.samples_to_find = 0 # To store the initial count of samples
         self.samples_located = 0 # To store number of samples located on map
@@ -77,7 +106,7 @@ class RoverState():
         self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
-
+        self.wall_angle = None
 # Initialize our rover
 Rover = RoverState()
 
@@ -85,7 +114,7 @@ Rover = RoverState()
 # Intitialize frame counter
 frame_counter = 0
 # Initalize second counter
-second_counter = time.clock()
+second_counter = time.time()
 fps = None
 
 start_time = second_counter
@@ -97,12 +126,12 @@ def telemetry(sid, data):
     global frame_counter, second_counter, fps
     frame_counter += 1
     # Do a rough calculation of frames per second (FPS)
-    if (time.clock() - second_counter) > 1:
+    if (time.time() - second_counter) > 1:
         fps = frame_counter
         frame_counter = 0
-        second_counter = time.clock()
+        second_counter = time.time()
         print("Current FPS: {}".format(fps))
-    print("elapsed: {}".format(time.clock() - start_time))
+    print("elapsed: {}".format(time.time() - start_time))
 
     if data:
         global Rover
@@ -131,11 +160,10 @@ def telemetry(sid, data):
             else:
                 # Send commands to the rover!
                 commands = (Rover.throttle, Rover.brake, Rover.steer)
-                print(commands)
+                # print(commands)
                 send_control(commands, out_image_string1, out_image_string2)
         # In case of invalid telemetry, send null commands
         else:
-            print("here")
             # Send zeros for throttle, brake and steer and empty images
             send_control((0, 0, 0), '', '')
         # If you want to save camera images from autonomous driving specify a path
@@ -147,7 +175,6 @@ def telemetry(sid, data):
             image.save('{}.jpg'.format(image_filename))
 
     else:
-        print("there")
         sio.emit('manual', data={}, skip_sid=True)
 
 
@@ -166,7 +193,6 @@ def connect(sid, environ):
 
 def send_control(commands, image_string1, image_string2):
     # Define commands to be sent to the rover
-    print("sending control")
     data = {
         'throttle': commands[0].__str__().replace(".",","),
         'brake': commands[1].__str__().replace(".",","),
@@ -174,14 +200,13 @@ def send_control(commands, image_string1, image_string2):
         'inset_image1': image_string1,
         'inset_image2': image_string2,
         }
-    print(data['throttle'], data['brake'], data['steering_angle'])
+    # print(data['throttle'], data['brake'], data['steering_angle'])
     # Send commands via socketIO server
     print("emitting data")
     sio.emit(
         "data",
         data,
         skip_sid=True)
-    print("done")
     sio.sleep(0)
 
 # Define a function to send the "pickup" command 
