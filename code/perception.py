@@ -25,8 +25,6 @@ def find_rock(warped_rock, rock_radius=Constants.ROCK_RADIUS):
     # initialised empty
     xrock = np.array([])
     yrock = np.array([])
-    xrock_center = np.array([])
-    yrock_center = np.array([])
     y, x = warped_rock.nonzero()
     if y.any() and x.any():
         rock_idx = np.argmax(y)
@@ -36,7 +34,7 @@ def find_rock(warped_rock, rock_radius=Constants.ROCK_RADIUS):
                    rock_radius, (255, 255, 255), -1)
         xrock, yrock = rover_coords(rock_circle)
 
-    return xrock, yrock, xrock_center, yrock_center
+    return xrock, yrock
 
 
 def update_beams_reading(Rover):
@@ -89,21 +87,27 @@ def perception_step(Rover):
     binary_rock = img_helper.rock_filter(img)
     binary_nav = img_helper.color_thresh(warped_image)
     binary_obstacle = img_helper.color_thresh(warped_image, invert=True)
+    # binary_obstacle = img_helper.obstacle_filter(warped_image, binary_nav)
     # 4) Update Rover.vision_image (this will be displayed on left side of screen)
     Rover.vision_image[:, :, 0] = binary_obstacle*255
-    Rover.vision_image[:, :, 1] = binary_rock*255
     Rover.vision_image[:, :, 2] = binary_nav*255
     # 5) Convert map image pixel values to rover-centric coords.replace(".",",")
     x_nav, y_nav = rover_coords(binary_nav)
+    # kernel = np.ones((3, 3), np.uint8)
+    # gradient = cv2.morphologyEx(binary_obstacle, cv2.MORPH_GRADIENT, kernel)
     x_obstacle, y_obstacle = rover_coords(binary_obstacle)
     warped_rock = img_helper.perspect_transform(binary_rock, src, dst)
-    x_rock, y_rock, x_rock_center, y_rock_center = find_rock(warped_rock, Constants.ROCK_RADIUS)
-    if x_rock_center.any() and y_rock_center.any():
+    Rover.vision_image[:, :, 1] = warped_rock * 255
+
+    x_rock, y_rock = find_rock(warped_rock, Constants.ROCK_RADIUS)
+    if x_rock.any() and y_rock.any():
         Rover.seeing_sample = True
+        r_dists, r_angles = nav_helper.to_polar_coords(x_rock, y_rock)
+        Rover.sample_pos = r_dists, r_angles
     else:
         Rover.seeing_sample = False
 
-    Rover.sample_pos = x_rock_center, y_rock_center
+    # Rover.sample_pos = x_rock_center, y_rock_center
     # 6) Convert rover-centric pixel values to world coordinates
     obstacle_x_world, obstacle_y_world = nav_helper.pix_to_world(x_obstacle, y_obstacle,
                                                                  xpos, ypos, yaw, img_size, Constants.SCALE)
@@ -116,19 +120,17 @@ def perception_step(Rover):
     # 7) Update Rover worldmap (to be displayed on right side of screen)
     # update obstacle map
     if img_helper.is_valid_image(roll, pitch , yaw,
-                                 eroll=Constants.ERR_ROLL, epitch=Constants.ERR_PITCH, eyaw=Constants.ERR_YAW):
+                                 eroll=Constants.ERR_ROLL, epitch=Constants.ERR_PITCH):
 
         img_helper.delta_update(Rover.worldmap, obstacle_y_world, obstacle_x_world, 0, Constants.DELTA)
-
+        img_helper.delta_update(Rover.worldmap, obstacle_y_world, obstacle_x_world, 2, -Constants.DELTA/4)
         # update navigation
         img_helper.delta_update(Rover.worldmap, nav_y_world, nav_x_world, 2, Constants.DELTA)
         # reduce certainty about obstacle.
-        img_helper.delta_update(Rover.worldmap, nav_y_world, nav_x_world, 0, -Constants.DELTA * .66)
+        img_helper.delta_update(Rover.worldmap, nav_y_world, nav_x_world, 0, -Constants.DELTA)
 
         # update rock sample map
         img_helper.delta_update(Rover.worldmap, rock_y_world, rock_x_world, 1, Constants.DELTA)
-        # Rock area should be assumed navigable
-        img_helper.delta_update(Rover.worldmap, rock_y_world, rock_x_world, 0, -Constants.DELTA)
 
 
     # 8) Convert rover-centric pixel positions to polar coordinates

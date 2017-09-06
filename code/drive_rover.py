@@ -71,24 +71,27 @@ class RoverState():
         self.nav_dists = None # Distances of navigable terrain pixels
         self.ground_truth = ground_truth_3d # Ground truth worldmap
         self.mode = 'forward' # Current mode (can be forward, stop, stuck, chase)
-        self.throttle_set = 0.2 # Throttle setting when accelerating
+        self.throttle_set = 0.1 # Throttle setting when accelerating
+        self.rock_pursuit_set = 0.04  # Throttle setting when accelerating
         self.reverse_set = -0.1 # Throttle setting when reversing.
         self.brake_set = 10 # Brake setting when braking
+        self.slow_down_set = 1
         # We use the beams readings to know if we are too close to an obstacle.
-        self.beam_angles = np.arange(361)
+        self.beam_angles = np.concatenate(([90],np.linspace(0, 360, 800)))
         self.beam_points = {}
         self.closest_obstacle = None
         self.furthest_obstacle = None
         self.displacement = None
-        self.etoll_disp = 5e-4 # meter
+        self.etoll_disp = 5e-6 # meter
         # The stop_forward and go_forward fields below represent total count
         # of navigable terrain pixels.  This is a very crude form of knowing
         # when you can keep going and when you should stop.  Feel free to
         # get creative in adding new fields or modifying these!
-        self.stop_forward = 1 # Threshold to initiate stopping in meter
-        self.go_forward = 2 # Threshold to go forward again in meter
-        self.go_forward_view = 500 # Visual thresold to go forward.
-        self.max_vel = 1.0 # Maximum velocity (meters/second)
+        self.stop_forward = 50 # Threshold to initiate stopping in meter
+        self.go_forward = 500 # Threshold to go forward again in meter
+        # self.go_forward_view = 500 # Visual thresold to go forward.
+        self.max_vel = 0.75 # Maximum velocity (meters/second)
+        self.max_pursuit_vel = 0.2
         # Image output from perception step
         # Update this image to display your intermediate analysis steps
         # on screen in autonomous mode
@@ -97,6 +100,7 @@ class RoverState():
         # Update this image with the positions of navigable terrain
         # obstacles and rock samples
         self.worldmap = np.zeros((200, 200, 3), dtype=np.float)
+        self.confidence = np.zeros((200, 200, 3), dtype=np.float)
         # We will use this to reach the sample.
         self.seeing_sample = False
         self.samples_pos = None # To store the actual sample positions

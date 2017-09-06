@@ -15,27 +15,29 @@ def calibrate_image(image):
                               ])
     return source, destination
 
+
 # Identify pixels above the threshold
 # Threshold of RGB > 160 does a nice job of identifying ground pixels only
-def color_thresh(img, rgb_thresh=(160, 160, 160), invert=False):
+def color_thresh(img, rgb_thresh=(160, 160, 160), invert=False, no_canvas=True):
     # Create an array of zeros same xy size as img, but single channel
     color_select = np.zeros_like(img[:, :, 0])
     # Require that each pixel be above all three threshold values in RGB
     # above_thresh will now contain a boolean array with "True"
     # where threshold was met
-    is_not_canvas = (img[:, :, 0] != 0) \
-                    & (img[:, :, 1] != 0) \
-                    & (img[:, :, 2] != 0)
-
     above_thresh = (img[:, :, 0] > rgb_thresh[0]) \
                    & (img[:, :, 1] > rgb_thresh[1]) \
                    & (img[:, :, 2] > rgb_thresh[2])
 
     if invert:
         above_thresh = ~above_thresh
+    if no_canvas:
+        is_not_canvas = (img[:, :, 0] != 0) \
+                        & (img[:, :, 1] != 0) \
+                        & (img[:, :, 2] != 0)
+        above_thresh = is_not_canvas & above_thresh
     # Index the array of zeros with the boolean array and set to 1
     # we add a guard against modifying the black background.
-    color_select[is_not_canvas & above_thresh] = 1
+    color_select[above_thresh] = 1
     # Return the binary image
     return color_select
 
@@ -59,6 +61,18 @@ def rock_filter(img, hsv_lower=(80, 50, 50), hsv_upper=(100, 255, 255), ksize=(5
     gray_rock = cv2.cvtColor(tresh_rock, cv2.COLOR_RGB2GRAY)
     th, binary_rock = cv2.threshold(gray_rock, 0, 255, cv2.THRESH_BINARY)
     return binary_rock
+
+
+def obstacle_filter(warped_img, navigable_img, ksize=(11,11)):
+    kernel = np.ones(ksize, np.uint8)
+    thresholded_nocanvas = color_thresh(warped_img, invert=True, no_canvas=True)
+    gradient_nocanvas = cv2.morphologyEx(thresholded_nocanvas, cv2.MORPH_GRADIENT, kernel)
+    thresholded_canvas = color_thresh(warped_img, invert=True, no_canvas=False)
+    gradient_canvas = cv2.morphologyEx(thresholded_canvas, cv2.MORPH_GRADIENT, kernel)
+    obstacles = gradient_nocanvas.copy()
+    obstacles[(gradient_nocanvas != gradient_canvas) | (navigable_img == 1)] = 0
+
+    return obstacles
 
 
 def dominant_channel_filter(image, channel):
@@ -85,8 +99,8 @@ def is_valid_angle(angle, etol):
         return False
 
 
-def is_valid_image(roll, pitch, yaw, eroll, epitch, eyaw):
-    if is_valid_angle(roll, eroll) and is_valid_angle(pitch, epitch) and is_valid_angle(yaw, eyaw):
+def is_valid_image(roll, pitch, yaw, eroll, epitch):
+    if is_valid_angle(roll, eroll) and is_valid_angle(pitch, epitch):
         return True
     else:
         return False
