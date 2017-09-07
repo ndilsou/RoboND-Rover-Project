@@ -51,10 +51,10 @@ def color_boundaries(img, hsv_lower, hsv_upper):
     return color_select
 
 
-def rock_filter(img, hsv_lower=(80, 50, 50), hsv_upper=(100, 255, 255), ksize=(5, 5), sigmaX=5):
+def rock_filter(img, hsv_lower=(80, 50, 50), hsv_upper=(100, 255, 255), ksize=(9, 9), sigmaX=10):
     """
-    isolate rocks in the image by applying a gaussian kernal followed by a first two band thresholding in bgr.
-    Finaly the grayscalled image is thresholded on last time to binarize it.
+    isolate rocks in the image by applying a gaussian kernel followed by a first two band thresholding in bgr.
+    Finally the grayscalled image is thresholded on last time to binarize it.
     """
     blurred_rock = cv2.GaussianBlur(src=img, ksize=ksize, sigmaX=sigmaX)
     tresh_rock = color_boundaries(blurred_rock, hsv_lower, hsv_upper)

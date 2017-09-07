@@ -55,7 +55,7 @@ class RoverState():
     def __init__(self):
         self.start_time = None # To record the start time of navigation
         self.total_time = None # To record total duration of naviagation
-        self.time_delta = 3 #seconds
+        self.time_delta = 2 #seconds
         self.delta_timer = DeltaTimer(self.time_delta)
         self.img = None # Current camera image
         self.last_pos = None
@@ -71,13 +71,13 @@ class RoverState():
         self.nav_dists = None # Distances of navigable terrain pixels
         self.ground_truth = ground_truth_3d # Ground truth worldmap
         self.mode = 'forward' # Current mode (can be forward, stop, stuck, chase)
-        self.throttle_set = 0.1 # Throttle setting when accelerating
-        self.rock_pursuit_set = 0.04  # Throttle setting when accelerating
-        self.reverse_set = -0.1 # Throttle setting when reversing.
+        self.throttle_set = 0.2 # Throttle setting when accelerating
+        self.rock_pursuit_set = 0.3  # Throttle setting when accelerating
+        self.reverse_set = -1.0 # Throttle setting when reversing.
         self.brake_set = 10 # Brake setting when braking
         self.slow_down_set = 1
         # We use the beams readings to know if we are too close to an obstacle.
-        self.beam_angles = np.concatenate(([90],np.linspace(0, 360, 800)))
+        self.beam_angles = np.linspace(45, 135, 400) # np.concatenate(([90],np.linspace(0, 360, 800)))
         self.beam_points = {}
         self.closest_obstacle = None
         self.furthest_obstacle = None
@@ -87,11 +87,12 @@ class RoverState():
         # of navigable terrain pixels.  This is a very crude form of knowing
         # when you can keep going and when you should stop.  Feel free to
         # get creative in adding new fields or modifying these!
-        self.stop_forward = 50 # Threshold to initiate stopping in meter
+        self.stop_forward = 250 # Threshold to initiate stopping in meter
         self.go_forward = 500 # Threshold to go forward again in meter
         # self.go_forward_view = 500 # Visual thresold to go forward.
-        self.max_vel = 0.75 # Maximum velocity (meters/second)
-        self.max_pursuit_vel = 0.2
+        self.max_vel = 1.0 # Maximum velocity (meters/second)
+        self.max_pursuit_vel = 0.5
+        self.reverse_vel_set = -0.7
         # Image output from perception step
         # Update this image to display your intermediate analysis steps
         # on screen in autonomous mode
@@ -100,9 +101,9 @@ class RoverState():
         # Update this image with the positions of navigable terrain
         # obstacles and rock samples
         self.worldmap = np.zeros((200, 200, 3), dtype=np.float)
-        self.confidence = np.zeros((200, 200, 3), dtype=np.float)
+        self.visited_map = np.zeros((200, 200), dtype=np.bool)
         # We will use this to reach the sample.
-        self.seeing_sample = False
+        self.curr_sample_pos = None
         self.samples_pos = None # To store the actual sample positions
         self.samples_to_find = 0 # To store the initial count of samples
         self.samples_located = 0 # To store number of samples located on map
@@ -111,6 +112,7 @@ class RoverState():
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
         self.wall_angle = None
+        self.wall_point = np.nan
 # Initialize our rover
 Rover = RoverState()
 
@@ -135,7 +137,7 @@ def telemetry(sid, data):
         frame_counter = 0
         second_counter = time.time()
         print("Current FPS: {}".format(fps))
-    print("elapsed: {}".format(time.time() - start_time))
+    # print("elapsed: {}".format(time.time() - start_time))
 
     if data:
         global Rover
@@ -198,9 +200,9 @@ def connect(sid, environ):
 def send_control(commands, image_string1, image_string2):
     # Define commands to be sent to the rover
     data = {
-        'throttle': commands[0].__str__().replace(".",","),
-        'brake': commands[1].__str__().replace(".",","),
-        'steering_angle': commands[2].__str__().replace(".",","),
+        'throttle': commands[0].__str__(), #.replace(".",","),
+        'brake': commands[1].__str__(), #.replace(".",","),
+        'steering_angle': commands[2].__str__(), #.replace(".",","),
         'inset_image1': image_string1,
         'inset_image2': image_string2,
         }

@@ -43,32 +43,24 @@ def update_beams_reading(Rover):
     obstacle_channel = img_helper.dominant_channel_filter(Rover.worldmap, 0)
     beam_points = nav_helper.find_beam_points(obstacle_channel, Rover.beam_angles, xpos, ypos, yaw,
                                               Constants.DELTA, atol=1e-1)
-    Rover.beam_points = {angle: beam for angle, beam in zip(Rover.beam_angles, beam_points)}
 
-    if Rover.beam_points[90]:
-        beam_point = np.array(Rover.beam_points[90])
-        normal_vector = -nav_helper.get_normal_vector(beam_point, 0)
-        _, wall_angle = nav_helper.to_polar_coords(*normal_vector)
-        Rover.wall_angle = wall_angle
+    if not np.isnan(beam_points).all():
+        idx = np.argmin(np.linalg.norm(beam_points, axis=1))
+        Rover.wall_point = beam_points[idx]
+        if not np.isnan(Rover.wall_point).all():
+            normal_vector = -nav_helper.get_normal_vector(Rover.wall_point, np.zeros(2))
+            _, wall_angle = nav_helper.to_polar_coords(*normal_vector)
+            Rover.wall_angle = wall_angle
+        Rover.beam_points = {angle: beam for angle, beam in zip(Rover.beam_angles, beam_points)}
     else:
-        Rover.wall_angle = np.nan
+        Rover.wall_point = np.nan
+        Rover.wall_angle = None
 
-    closest_point = (np.inf, None)
-    furthest_point = (-np.inf, None)
-    for beam_point in beam_points:
-        if beam_point:
-            dist, angle = nav_helper.to_polar_coords(*beam_point)
-            if dist < closest_point[0]:
-                # We want to point away from the obstacle
-                closest_point = (dist,  angle)
-            if dist > furthest_point[0]:
-                furthest_point = (dist, angle)
-    Rover.closest_obstacle = closest_point
-    Rover.furthest_obstacle = furthest_point
 
 # Apply the above functions in succession and update the Rover state accordingly
 def perception_step(Rover):
     # Perform perception steps to update Rover()
+    nav_helper.visit_location(Rover)
     img = Rover.img
     xpos, ypos = Rover.pos
     roll = Rover.roll
@@ -100,32 +92,37 @@ def perception_step(Rover):
     Rover.vision_image[:, :, 1] = warped_rock * 255
 
     x_rock, y_rock = find_rock(warped_rock, Constants.ROCK_RADIUS)
+
     if x_rock.any() and y_rock.any():
         Rover.seeing_sample = True
         r_dists, r_angles = nav_helper.to_polar_coords(x_rock, y_rock)
-        Rover.sample_pos = r_dists, r_angles
+        Rover.curr_sample_pos = r_dists, r_angles
     else:
         Rover.seeing_sample = False
 
-    # Rover.sample_pos = x_rock_center, y_rock_center
+
+
     # 6) Convert rover-centric pixel values to world coordinates
     obstacle_x_world, obstacle_y_world = nav_helper.pix_to_world(x_obstacle, y_obstacle,
-                                                                 xpos, ypos, yaw, img_size, Constants.SCALE)
+                                                                 xpos, ypos, yaw,
+                                                                 Constants.WORLD_SIZE, Constants.SCALE)
     nav_x_world, nav_y_world = nav_helper.pix_to_world(x_nav, y_nav,
-                                                       xpos, ypos, yaw, img_size, Constants.SCALE)
+                                                       xpos, ypos, yaw,
+                                                       Constants.WORLD_SIZE, Constants.SCALE)
     rock_x_world, rock_y_world = nav_helper.pix_to_world(x_rock, y_rock,
-                                                         xpos, ypos, yaw, img_size, Constants.SCALE)
+                                                         xpos, ypos, yaw,
+                                                         Constants.WORLD_SIZE, Constants.SCALE)
 
 
     # 7) Update Rover worldmap (to be displayed on right side of screen)
     # update obstacle map
-    if img_helper.is_valid_image(roll, pitch , yaw,
+    if img_helper.is_valid_image(roll, pitch, yaw,
                                  eroll=Constants.ERR_ROLL, epitch=Constants.ERR_PITCH):
 
         img_helper.delta_update(Rover.worldmap, obstacle_y_world, obstacle_x_world, 0, Constants.DELTA)
-        img_helper.delta_update(Rover.worldmap, obstacle_y_world, obstacle_x_world, 2, -Constants.DELTA/4)
+        img_helper.delta_update(Rover.worldmap, obstacle_y_world, obstacle_x_world, 2, -Constants.DELTA * 0.3)
         # update navigation
-        img_helper.delta_update(Rover.worldmap, nav_y_world, nav_x_world, 2, Constants.DELTA)
+        img_helper.delta_update(Rover.worldmap, nav_y_world, nav_x_world, 2, 2 * Constants.DELTA)
         # reduce certainty about obstacle.
         img_helper.delta_update(Rover.worldmap, nav_y_world, nav_x_world, 0, -Constants.DELTA)
 
@@ -135,9 +132,15 @@ def perception_step(Rover):
 
     # 8) Convert rover-centric pixel positions to polar coordinates
     # Update Rover pixel distances and angles
+    nav_helper.weight_visited(Rover, nav_x_world, nav_y_world)
     dists, angles = nav_helper.to_polar_coords(x_nav, y_nav)
     Rover.nav_dists = dists
     Rover.nav_angles = angles
 
+    dists, angles = nav_helper.to_polar_coords(x_obstacle, y_obstacle)
+    Rover.obst_dists = dists
+    Rover.obst_angles = angles
+
     update_beams_reading(Rover)
+
     return Rover

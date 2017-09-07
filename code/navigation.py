@@ -15,6 +15,8 @@ def rad_to_deg(radian):
 def norm(x, y):
     return np.sqrt(x ** 2 + y ** 2)
 
+def to_int(f):
+    return np.int(np.round(f))
 
 # Define a function to convert to radial coords in rover space
 def to_polar_coords(x_pixel, y_pixel):
@@ -87,16 +89,16 @@ def find_beam_points(worldmap, degrees, xpos, ypos, yaw, scale, atol):
     x_robot, y_robot = world_to_pix(x_pix_world, y_pix_world, xpos, ypos, yaw, scale)
     map_dists, map_angles = to_polar_coords(x_robot, y_robot)
 
-    beam_points = []
-    for degree in degrees:
+    beam_points = np.empty((len(degrees), 2))
+    for i, degree in enumerate(degrees):
         beam_filter = np.isclose(map_angles, deg_to_rad(degree), atol=atol)
         try:
             beam_index = np.argmin(map_dists[beam_filter])
-            beam_polar_coord = (map_dists[beam_filter][beam_index], map_angles[beam_filter][beam_index])
+            beam_polar_coord = [map_dists[beam_filter][beam_index], map_angles[beam_filter][beam_index]]
             beam_point = to_cartesian_coords(*beam_polar_coord)
         except ValueError:
-            beam_point = tuple()
-        beam_points.append(beam_point)
+            beam_point = [np.nan, np.nan]
+        beam_points[i, :] = beam_point
     return beam_points
 
 
@@ -105,3 +107,20 @@ def get_normal_vector(x, y):
     normal = np.array([-dv[1], dv[0]])
     normal = normal / np.linalg.norm(normal, 2)
     return normal
+
+
+def visit_location(Rover):
+    trace = 1
+    x, y = Rover.pos
+    x = to_int(x)
+    y = to_int(y)
+    Rover.visited_map[y - trace:y + trace, x - trace: x + trace] = True
+
+
+def weight_visited(Rover, nav_x_world, nav_y_world):
+    weights = np.ones_like(nav_x_world)
+    for i, (x, y) in enumerate(zip(nav_x_world, nav_y_world)):
+        if Rover.visited_map[y, x]:
+            weights[i] = 0.01
+    Rover.nav_weights = weights / weights.sum()
+

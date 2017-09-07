@@ -33,7 +33,7 @@ def update_rover(Rover, data):
                   Rover.total_time = tot_time
 
       # Print out the fields in the telemetry data dictionary
-      print(data.keys())
+      # print(data.keys())
       # The current speed of the rover in m/s
       Rover.vel = convert_to_float(data["speed"])
       # Store the last pos
