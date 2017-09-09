@@ -27,6 +27,8 @@ from supporting_functions import update_rover, create_output_images
 sio = socketio.Server()
 app = Flask(__name__)
 
+logging.basicConfig()
+
 # Read in ground truth map and create 3-channel green version for overplotting
 # NOTE: images are read in by default with the origin (0, 0) in the upper left
 # and y-axis increasing downward.
@@ -90,7 +92,7 @@ class RoverState():
         self.stop_forward = 250 # Threshold to initiate stopping in meter
         self.go_forward = 500 # Threshold to go forward again in meter
         # self.go_forward_view = 500 # Visual thresold to go forward.
-        self.max_vel = 1.5 # Maximum velocity (meters/second)
+        self.max_vel = 1.0 # Maximum velocity (meters/second)
         self.max_pursuit_vel = 0.5
         self.reverse_vel_set = -0.7
         # Image output from perception step

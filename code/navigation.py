@@ -119,11 +119,17 @@ def visit_location(Rover):
 
 def weight_visited(Rover, nav_x_world, nav_y_world):
     if len(nav_x_world) > 0:
-        weights = np.ones_like(nav_x_world)
+        weights = np.ones_like(nav_x_world, dtype=np.float)
         for i, (x, y) in enumerate(zip(nav_x_world, nav_y_world)):
             if Rover.visited_map[y, x]:
-                weights[i] = 0.2
-        weights = weights / weights.sum()
+                weights[i] = 0.05
+        sum_w = weights.sum()
+        if not np.isnan(sum_w).all():
+            try:
+                weights = weights / sum_w
+            except RuntimeWarning as e:
+                weights = np.ones_like(nav_x_world)
+
     else:
         weights = np.array([])
     Rover.nav_weights = weights

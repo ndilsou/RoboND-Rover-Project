@@ -14,11 +14,8 @@ def set_angle(Rover):
     mean_angle = mean_nav_angle(Rover)
     if not np.isnan(Rover.wall_point).all():
         wall_normal_vect = rad_to_deg(Rover.wall_angle)
-        # w_normal = 0.20
-        # weights = np.concatenate(([w_normal], Rover.nav_weights))
         weights = np.array([0.33, 0.66])
         angles = np.array([wall_normal_vect, mean_angle])
-        # angles = np.concatenate(([wall_normal_vect], Rover.nav_angles))
         print(mean_nav_angle(Rover), wall_normal_vect)
         angle = np.average(angles, weights=weights)
         print("unclipped angle: {}".format(angle))
@@ -48,9 +45,19 @@ def is_moving(Rover):
 
 def see_sample(Rover):
     print("Seeing SAMPLE? {}".format(Rover.seeing_sample))
+    # Are we seeing a sample on our left side?
     if Rover.seeing_sample:
         return True
     return False
+
+
+def check_data(Rover):
+    if Rover.throttle == np.nan:
+        Rover.throttle = 0
+    if Rover.steer == np.nan:
+        Rover.steer = 0
+    if Rover.brake == np.nan:
+        Rover.brake = 0
 
 # This is where you can build a decision tree for determining throttle, brake and steer
 # commands based on the output of the perception_step() function
@@ -133,7 +140,7 @@ def decision_step(Rover):
                             # Release the brake to allow turning
                             Rover.brake = 0
                             # Turn range is +/- 15 degrees, when stopped the next line will induce 4-wheel turning
-                            Rover.steer = np.sign(mean_nav_angle(Rover)) * 15
+                            Rover.steer = -15 #np.sign(set_angle(Rover)) * 15
                             # Rover.steer = -15  # Could be more clever here about which way to turn
                         # If we're stopped but see sufficient navigable terrain in front then go!
                         elif len(Rover.nav_angles) >= Rover.go_forward:
@@ -154,7 +161,7 @@ def decision_step(Rover):
                         # Release the brake to allow turning
                         Rover.brake = 0
                         # Turn range is +/- 15 degrees, when stopped the next line will induce 4-wheel turning
-                        Rover.steer = np.sign(mean_nav_angle(Rover)) * 15
+                        Rover.steer = -15
                         Rover.mode = "stop"
                     else:
                         Rover.throttle = 0
@@ -162,6 +169,10 @@ def decision_step(Rover):
                         Rover.brake = Rover.brake_set
                         Rover.steer = 0
                         Rover.mode = "stop"
+
+        # Last guard against erroneous data.
+        check_data(Rover)
+
     # Just to make the rover do something
     # even if no modifications have been made to the code
     else:
@@ -174,4 +185,5 @@ def decision_step(Rover):
         Rover.send_pickup = True
         Rover.mode = "stop"
         Rover.curr_curr_sample_pos = None
+
     return Rover
