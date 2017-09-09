@@ -1,30 +1,25 @@
 import numpy as np
 from navigation import rad_to_deg, deg_to_rad, to_polar_coords
 
+
 def mean_nav_angle(Rover):
-    return np.average(rad_to_deg(Rover.nav_angles), weights=Rover.nav_weights)
+    if Rover.nav_angles.any() and len(Rover.nav_angles) > 0:
+        angle = np.average(rad_to_deg(Rover.nav_angles), weights=Rover.nav_weights)
+    else:
+        angle = -15
+    return angle
+
 
 def set_angle(Rover):
-    # s_size = np.min([len(Rover.nav_angles), 500])
-    # nav_angles = np.random.choice(Rover.nav_angles, s_size, replace=False)
     mean_angle = mean_nav_angle(Rover)
     if not np.isnan(Rover.wall_point).all():
-        # beam_point = Rover.wall_point
-        # wall_dist, wall_vect = to_polar_coords(*beam_point)
-        # wall_vect = rad_to_deg(wall_vect)
         wall_normal_vect = rad_to_deg(Rover.wall_angle)
-
-        # if wall_dist > 130:
-        #     wall_weight = 0.01
-        # elif wall_dist < 100:
-        #     wall_weight = -0.1
-        # else:
-        #     wall_weight = 0.0
-        # wall_weight = 0
-        weights = np.array([ 0.33, 0.66])
+        # w_normal = 0.20
+        # weights = np.concatenate(([w_normal], Rover.nav_weights))
+        weights = np.array([0.33, 0.66])
         angles = np.array([wall_normal_vect, mean_angle])
-        # print(weights, angles)
-        print(mean_angle, wall_normal_vect)
+        # angles = np.concatenate(([wall_normal_vect], Rover.nav_angles))
+        print(mean_nav_angle(Rover), wall_normal_vect)
         angle = np.average(angles, weights=weights)
         print("unclipped angle: {}".format(angle))
     else:
@@ -44,7 +39,7 @@ def is_moving(Rover):
 
     displacement = ((Rover.pos[0] - Rover.last_pos[0]) ** 2 +
                     (Rover.pos[1] - Rover.last_pos[1]) ** 2) ** 1/2
-    print("displacement: {}".format(displacement))
+    Rover.logger.info("displacement: {}".format(displacement))
     if displacement > Rover.etoll_disp:
         return True
     else:
@@ -69,7 +64,8 @@ def decision_step(Rover):
     if Rover.nav_angles is not None:
         # We're not moving but have positive velocity, we must be stuck.
         print("moving? {}, vel: {}".format(is_moving(Rover), Rover.vel))
-        if Rover.delta_timer.poll() and not is_moving(Rover) and Rover.throttle != 0:
+        if (Rover.delta_timer.poll() and not is_moving(Rover)
+            and (Rover.throttle != 0 or (Rover.throttle == 0 and Rover.steer != 0))):
             Rover.throttle = 0
             Rover.brake = Rover.brake_set
             Rover.steer = 0
@@ -137,16 +133,15 @@ def decision_step(Rover):
                             # Release the brake to allow turning
                             Rover.brake = 0
                             # Turn range is +/- 15 degrees, when stopped the next line will induce 4-wheel turning
-                            Rover.steer = np.sign(set_angle(Rover)) * 15
+                            Rover.steer = np.sign(mean_nav_angle(Rover)) * 15
                             # Rover.steer = -15  # Could be more clever here about which way to turn
                         # If we're stopped but see sufficient navigable terrain in front then go!
-                        if len(Rover.nav_angles) >= Rover.go_forward:
+                        elif len(Rover.nav_angles) >= Rover.go_forward:
                             # Set throttle back to stored value
                             Rover.throttle = Rover.throttle_set
                             # Release the brake
                             Rover.brake = 0
                             # Set steer to mean angle
-
                             Rover.steer = np.clip(set_angle(Rover), -15, 15)
                             Rover.mode = 'forward'
                 elif Rover.mode == "stuck":
@@ -159,16 +154,15 @@ def decision_step(Rover):
                         # Release the brake to allow turning
                         Rover.brake = 0
                         # Turn range is +/- 15 degrees, when stopped the next line will induce 4-wheel turning
-                        Rover.steer = -15
+                        Rover.steer = np.sign(mean_nav_angle(Rover)) * 15
                         Rover.mode = "stop"
                     else:
                         Rover.throttle = 0
                         # Release the brake to allow turning
                         Rover.brake = Rover.brake_set
-                        # Turn range is +/- 15 degrees, when stopped the next line will induce 4-wheel turning
                         Rover.steer = 0
                         Rover.mode = "stop"
-                    # Just to make the rover do something
+    # Just to make the rover do something
     # even if no modifications have been made to the code
     else:
         Rover.throttle = Rover.throttle_set

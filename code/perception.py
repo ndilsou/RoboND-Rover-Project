@@ -43,14 +43,20 @@ def update_beams_reading(Rover):
     obstacle_channel = img_helper.dominant_channel_filter(Rover.worldmap, 0)
     beam_points = nav_helper.find_beam_points(obstacle_channel, Rover.beam_angles, xpos, ypos, yaw,
                                               Constants.DELTA, atol=1e-1)
-
-    if not np.isnan(beam_points).all():
-        idx = np.argmin(np.linalg.norm(beam_points, axis=1))
-        Rover.wall_point = beam_points[idx]
+    failed = np.isnan(beam_points)
+    if not failed.all():
+        filtered = beam_points[~failed] # returns in 1d.
+        filtered = filtered.reshape((np.int(len(filtered)/2), 2))
+        norms = np.linalg.norm(filtered, axis=1)
+        idx = norms < Rover.beam_radius
+        Rover.wall_point = np.mean(filtered[idx], axis=0)
         if not np.isnan(Rover.wall_point).all():
             normal_vector = -nav_helper.get_normal_vector(Rover.wall_point, np.zeros(2))
             _, wall_angle = nav_helper.to_polar_coords(*normal_vector)
+
             Rover.wall_angle = wall_angle
+            Rover.wall_dist = nav_helper.norm(*Rover.wall_point)
+            print("wall dist: {}".format(Rover.wall_dist))
         Rover.beam_points = {angle: beam for angle, beam in zip(Rover.beam_angles, beam_points)}
     else:
         Rover.wall_point = np.nan

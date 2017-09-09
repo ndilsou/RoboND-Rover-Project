@@ -118,9 +118,12 @@ def visit_location(Rover):
 
 
 def weight_visited(Rover, nav_x_world, nav_y_world):
-    weights = np.ones_like(nav_x_world)
-    for i, (x, y) in enumerate(zip(nav_x_world, nav_y_world)):
-        if Rover.visited_map[y, x]:
-            weights[i] = 0.01
-    Rover.nav_weights = weights / weights.sum()
-
+    if len(nav_x_world) > 0:
+        weights = np.ones_like(nav_x_world)
+        for i, (x, y) in enumerate(zip(nav_x_world, nav_y_world)):
+            if Rover.visited_map[y, x]:
+                weights[i] = 0.2
+        weights = weights / weights.sum()
+    else:
+        weights = np.array([])
+    Rover.nav_weights = weights

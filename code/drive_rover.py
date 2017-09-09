@@ -14,6 +14,7 @@ from flask import Flask
 from io import BytesIO, StringIO
 import json
 import pickle
+import logging
 import matplotlib.image as mpimg
 import time
 
@@ -67,8 +68,9 @@ class RoverState():
         self.steer = 0 # Current steering angle
         self.throttle = 0 # Current throttle value
         self.brake = 0 # Current brake value
-        self.nav_angles = None # Angles of navigable terrain pixels
-        self.nav_dists = None # Distances of navigable terrain pixels
+        self.nav_angles = np.array([]) # Angles of navigable terrain pixels
+        self.nav_dists = np.array([]) # Distances of navigable terrain pixels
+        self.nav_weights = np.array([]) # Weight of each pixel in the navigable terrain
         self.ground_truth = ground_truth_3d # Ground truth worldmap
         self.mode = 'forward' # Current mode (can be forward, stop, stuck, chase)
         self.throttle_set = 0.2 # Throttle setting when accelerating
@@ -79,8 +81,6 @@ class RoverState():
         # We use the beams readings to know if we are too close to an obstacle.
         self.beam_angles = np.linspace(45, 135, 400) # np.concatenate(([90],np.linspace(0, 360, 800)))
         self.beam_points = {}
-        self.closest_obstacle = None
-        self.furthest_obstacle = None
         self.displacement = None
         self.etoll_disp = 5e-6 # meter
         # The stop_forward and go_forward fields below represent total count
@@ -90,7 +90,7 @@ class RoverState():
         self.stop_forward = 250 # Threshold to initiate stopping in meter
         self.go_forward = 500 # Threshold to go forward again in meter
         # self.go_forward_view = 500 # Visual thresold to go forward.
-        self.max_vel = 1.0 # Maximum velocity (meters/second)
+        self.max_vel = 1.5 # Maximum velocity (meters/second)
         self.max_pursuit_vel = 0.5
         self.reverse_vel_set = -0.7
         # Image output from perception step
@@ -111,8 +111,11 @@ class RoverState():
         self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
+        self.beam_radius = 50
         self.wall_angle = None
-        self.wall_point = np.nan
+        self.wall_dist = None
+        self.wall_points = np.nan
+        self.logger = logging.getLogger("Rover")
 # Initialize our rover
 Rover = RoverState()
 
