@@ -1,8 +1,12 @@
+"""
+This module contains a set of function used essentially in the perception step.
+Those functions focus on providing information that will help the Rover better navigate it's
+environment.
+"""
+
 import numpy as np
-import cv2
 
-import image_processing as img_helpers
-
+VISITED_WEIGHT = 0.05 # Weight given to pixels already visited by the Rover.
 
 def deg_to_rad(degree):
     return degree * np.pi / 180
@@ -18,6 +22,7 @@ def norm(x, y):
 def to_int(f):
     return np.int(np.round(f))
 
+
 # Define a function to convert to radial coords in rover space
 def to_polar_coords(x_pixel, y_pixel):
     # Convert (x_pixel, y_pixel) to (distance, angle)
@@ -30,6 +35,9 @@ def to_polar_coords(x_pixel, y_pixel):
 
 
 def to_cartesian_coords(dist, angle):
+    """
+    Converts (dist, angle) from polar coordinate to cartesian coordinate.
+    """
     x = dist * np.cos(angle)
     y = dist * np.sin(angle)
     return x, y
@@ -40,7 +48,6 @@ def rotate_pix(xpix, ypix, yaw):
     # Convert yaw to radians
     yaw_rad = yaw * np.pi / 180
     xpix_rotated = (xpix * np.cos(yaw_rad)) - (ypix * np.sin(yaw_rad))
-
     ypix_rotated = (xpix * np.sin(yaw_rad)) + (ypix * np.cos(yaw_rad))
     # Return the result
     return xpix_rotated, ypix_rotated
@@ -85,6 +92,12 @@ def world_to_pix(x_pix_world, y_pix_world, xpos, ypos, yaw, scale):
 
 
 def find_beam_points(worldmap, degrees, xpos, ypos, yaw, scale, atol):
+    """
+    Mimics the concepts of a Point Cloud in 2d.
+    Provide a mechanism to sense obstacle and their distance/angle.
+    Performs a beam reading based on the current knowledge in the map.
+    Each pixel surrounding the Rover's position in the binqry worldmap is captured.
+    """
     x_pix_world, y_pix_world = worldmap.nonzero()
     x_robot, y_robot = world_to_pix(x_pix_world, y_pix_world, xpos, ypos, yaw, scale)
     map_dists, map_angles = to_polar_coords(x_robot, y_robot)
@@ -103,6 +116,9 @@ def find_beam_points(worldmap, degrees, xpos, ypos, yaw, scale, atol):
 
 
 def get_normal_vector(x, y):
+    """
+    Returns the normal vector to two point.
+    """
     dv = x - y
     normal = np.array([-dv[1], dv[0]])
     normal = normal / np.linalg.norm(normal, 2)
@@ -110,6 +126,9 @@ def get_normal_vector(x, y):
 
 
 def visit_location(Rover):
+    """
+    Flag the surrounding pixels as visited to make them less attractive in the field of vision.
+    """
     trace = 1
     x, y = Rover.pos
     x = to_int(x)
@@ -118,11 +137,16 @@ def visit_location(Rover):
 
 
 def weight_visited(Rover, nav_x_world, nav_y_world):
+    """
+    Check the current field of vision and weight each pixel based on whether it's
+    been visited or not. This allow the Rover to focus attention around areas with
+    new pixel.
+    """
     if len(nav_x_world) > 0:
         weights = np.ones_like(nav_x_world, dtype=np.float)
         for i, (x, y) in enumerate(zip(nav_x_world, nav_y_world)):
             if Rover.visited_map[y, x]:
-                weights[i] = 0.05
+                weights[i] = VISITED_WEIGHT
         sum_w = weights.sum()
         if not np.isnan(sum_w).all():
             try:

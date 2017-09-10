@@ -14,7 +14,6 @@ from flask import Flask
 from io import BytesIO, StringIO
 import json
 import pickle
-import logging
 import matplotlib.image as mpimg
 import time
 
@@ -40,6 +39,9 @@ ground_truth_3d = np.dstack((ground_truth*0, ground_truth*255, ground_truth*0)).
 
 
 class DeltaTimer:
+    """
+    This class is a helper to allow us to track elapsed time.
+    """
     def __init__(self, delta_seconds):
         self.delta_seconds = delta_seconds
         self.last_time = None
@@ -53,16 +55,18 @@ class DeltaTimer:
             return True
         return False
 
+
 # Define RoverState() class to retain rover state parameters
 class RoverState():
     def __init__(self):
         self.start_time = None # To record the start time of navigation
         self.total_time = None # To record total duration of naviagation
         self.time_delta = 2 #seconds
-        self.delta_timer = DeltaTimer(self.time_delta)
+        self.delta_timer = DeltaTimer(self.time_delta) # Timer used to check elapsed time and monitor events.
         self.img = None # Current camera image
-        self.last_pos = None
+        self.last_pos = None # Last position(x, y)
         self.pos = None # Current position (x, y)
+        self.etoll_disp = 5e-6  # meter, minimum distance to consider that the rover is stuck.
         self.yaw = None # Current yaw angle
         self.pitch = None # Current pitch angle
         self.roll = None # Current roll angle
@@ -74,17 +78,16 @@ class RoverState():
         self.nav_dists = np.array([]) # Distances of navigable terrain pixels
         self.nav_weights = np.array([]) # Weight of each pixel in the navigable terrain
         self.ground_truth = ground_truth_3d # Ground truth worldmap
-        self.mode = 'forward' # Current mode (can be forward, stop, stuck, chase)
+        self.mode = 'forward' # Current mode (can be forward, stop, stuck)
         self.throttle_set = 0.2 # Throttle setting when accelerating
-        self.rock_pursuit_set = 0.3  # Throttle setting when accelerating
+        self.rock_pursuit_set = 0.3  # Throttle setting when looking for a rock.
         self.reverse_set = -1.0 # Throttle setting when reversing.
         self.brake_set = 10 # Brake setting when braking
-        self.slow_down_set = 1
-        # We use the beams readings to know if we are too close to an obstacle.
-        self.beam_angles = np.linspace(45, 135, 400) # np.concatenate(([90],np.linspace(0, 360, 800)))
-        self.beam_points = {}
-        self.displacement = None
-        self.etoll_disp = 5e-6 # meter
+        self.slow_down_set = 1 # brake setting when slowing down.
+        # We use the beams readings to locate the left wall.
+        self.beam_angles = np.linspace(45, 135, 400)
+        self.beam_points = {} # dictionary of currently known beampoints.
+
         # The stop_forward and go_forward fields below represent total count
         # of navigable terrain pixels.  This is a very crude form of knowing
         # when you can keep going and when you should stop.  Feel free to
@@ -93,9 +96,9 @@ class RoverState():
         self.go_forward = 500 # Threshold to go forward again in meter
         # self.go_forward_view = 500 # Visual thresold to go forward.
         self.max_vel = 1.0 # Maximum velocity (meters/second)
-        self.max_pursuit_vel = 0.5
-        self.reverse_vel_set = -0.7
-        # Image output from perception step
+        self.max_pursuit_vel = 0.5 # When chasing a rock, we should not go too fast.
+        self.reverse_vel_set = -0.7 # Target velocity to stop reversing when stuck
+        # Image output from perception step.
         # Update this image to display your intermediate analysis steps
         # on screen in autonomous mode
         self.vision_image = np.zeros((160, 320, 3), dtype=np.float) 
@@ -103,6 +106,7 @@ class RoverState():
         # Update this image with the positions of navigable terrain
         # obstacles and rock samples
         self.worldmap = np.zeros((200, 200, 3), dtype=np.float)
+        # Each pixel can be flagged as visited to push the Rover toward exploring new areas.
         self.visited_map = np.zeros((200, 200), dtype=np.bool)
         # We will use this to reach the sample.
         self.curr_sample_pos = None
@@ -113,11 +117,11 @@ class RoverState():
         self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
-        self.beam_radius = 50
-        self.wall_angle = None
-        self.wall_dist = None
-        self.wall_points = np.nan
-        self.logger = logging.getLogger("Rover")
+        self.beam_radius = 50 # maximum distance of the beam points used to find the wall.
+        self.wall_angle = None # Normal vector to the wall.
+        self.wall_dist = None # Average distance to the wall.
+        self.wall_points = np.nan # Average wall point
+
 # Initialize our rover
 Rover = RoverState()
 
@@ -205,9 +209,9 @@ def connect(sid, environ):
 def send_control(commands, image_string1, image_string2):
     # Define commands to be sent to the rover
     data = {
-        'throttle': commands[0].__str__(), #.replace(".",","),
-        'brake': commands[1].__str__(), #.replace(".",","),
-        'steering_angle': commands[2].__str__(), #.replace(".",","),
+        'throttle': commands[0].__str__(),
+        'brake': commands[1].__str__(),
+        'steering_angle': commands[2].__str__(),
         'inset_image1': image_string1,
         'inset_image2': image_string2,
         }
