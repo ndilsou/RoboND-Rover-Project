@@ -31,11 +31,6 @@ def set_angle(Rover):
     else:
         angle = mean_angle
 
-    # if Rover.closest_obstacle:
-    #     obst_dist, obst_angle = Rover.closest_obstacle
-    #     print("!!! closest obstacle dist: {}, angle: {} !!!".format(obst_dist, obst_angle))
-    #     obst_angle = rad_to_deg(obst_angle)
-
     return angle
 
 
