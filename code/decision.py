@@ -104,9 +104,13 @@ def forward_mode(Rover):
         if Rover.vel < Rover.max_vel:
             # Set throttle value to throttle setting
             Rover.throttle = Rover.throttle_set
+            Rover.brake = 0
+        elif Rover.vel > Rover.max_vel:
+            Rover.throttle = 0
+            Rover.brake = Rover.slow_down_set / 10
         else:  # Else coast
             Rover.throttle = 0
-        Rover.brake = 0
+            Rover.brake = 0
         # Set steering to average angle clipped to the range +/- 15
         Rover.steer = np.clip(set_angle(Rover), -15, 15)
 

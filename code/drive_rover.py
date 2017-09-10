@@ -93,7 +93,7 @@ class RoverState():
         self.stop_forward = 250 # Threshold to initiate stopping in meter
         self.go_forward = 500 # Threshold to go forward again in meter
         # self.go_forward_view = 500 # Visual thresold to go forward.
-        self.max_vel = 1.0 # Maximum velocity (meters/second)
+        self.max_vel = 1.5 # Maximum velocity (meters/second)
         self.max_pursuit_vel = 0.5 # When chasing a rock, we should not go too fast.
         self.reverse_vel_set = -0.7 # Target velocity to stop reversing when stuck
         # Image output from perception step.

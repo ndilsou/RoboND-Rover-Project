@@ -8,6 +8,8 @@ This implementation of the Search and Sample return project was ran on a Ubuntu 
     Graphics: Intel Ivybridge Mobile
     OS Type: 64-bit
 
+Simulator was run in 1024x576 with Graphics Quality set to Good.
+
 The objective of the project was to provide a robot with perception and decision capability. The Robot should be able to do a mapping of its environment and optionally collect up to 6 rock sample.
 
 
@@ -247,15 +249,17 @@ If a sample is identified in the field of vision, the Rover will set is steering
 
 #### Results and possible improvements:
 
-![](./results/success_run1.jpg?raw=true)
+![](./results/success_run2.jpg?raw=true)
 
-This Rover design allowed us to reach % of the environment mapped at % fidelity with 6 samples collected most of the time.
-
+This Rover design allowed us to reach 95% of the environment mapped at 75.6% fidelity with 6 samples collected most of the time.
+We received updates at 8 FPS.
 Current know issues are:
 * Lack of clean exception management.
 * If the Rover is reversing and hits the wall behind it, it may not be able to transition into the stopped mode and will keep driving backward forever.
 * Under some circumstance the bright rocks in the starting area may be seen as samples. This will lead the Rover to hit the obstacle. It usually managed to find its way back afterward.
-
+* The rocks in the middle area are still hard to go by.
+* The Rover needs to be aware of its own size and of obstacle. A Solution could be to grow the obstacles in the field of vision.
+    Maybe we could do it through a dilation or an erosion.
 Possible improvement:
 
 * Using the 2D point Cloud to build a proper potential field navigation system. Unvisited pixels would be part of the attractive field and we would use the existing information on the obstacle locations around the Rover to build the repulsive field.
